@@ -218,10 +218,46 @@ let data;
 try{ data=JSON.parse(localStorage.getItem(KEY)) || null; }catch(e){ data=null; }
 if(!data || !Array.isArray(data.themes)) data=structuredClone(SEED);
 
-let view={x:0,y:0,k:0.78};
+let view={x:0,y:0,k:0.6};
 let sel=null;          // {kind:"theme"|"idea", id}
 let mode="map";
 let freshId=null;
+
+/* 画面サイズを確実に取得（初期描画タイミング対策） */
+function size(){
+  const w=canvas.clientWidth||window.innerWidth;
+  const h=canvas.clientHeight||window.innerHeight;
+  return {w,h};
+}
+/* グラフ全体が画面に収まる倍率で中央に配置 */
+function fitView(){
+  const {nodes}=layout();
+  const dim=size();
+  // ノードの占有範囲（カードの大きさも考慮）
+  let minX=-70,maxX=70,minY=-70,maxY=70; // 中心ノード分
+  for(const nd of nodes){
+    const hw = nd.kind==="theme" ? 80 : 94;
+    const hh = nd.kind==="theme" ? 30 : 48;
+    minX=Math.min(minX,nd.x-hw); maxX=Math.max(maxX,nd.x+hw);
+    minY=Math.min(minY,nd.y-hh); maxY=Math.max(maxY,nd.y+hh);
+  }
+  const gw=maxX-minX, gh=maxY-minY;
+  const pad=24;
+  const topInset=110;   // ヘッダーの高さ分
+  const botInset=110;   // 下部ボタン・ズーム分
+  const availW=dim.w-pad*2;
+  const availH=dim.h-topInset-botInset;
+  const k=Math.max(0.34,Math.min(1.2, Math.min(availW/gw, availH/gh)));
+  // グラフ中心を、使用可能領域の中心に合わせる
+  const gcx=(minX+maxX)/2, gcy=(minY+maxY)/2;
+  const targetCY=(topInset + (dim.h-botInset))/2; // 画面上の縦中心（ヘッダー下〜下部ボタン上の中央）
+  view={
+    x: -gcx,
+    y: (targetCY - dim.h/2)/k - gcy,
+    k
+  };
+  if(mode==="map") renderMap();
+}
 
 function save(){
   try{
@@ -270,28 +306,29 @@ const world=document.getElementById("world");
 const canvas=document.getElementById("canvas");
 function renderMap(){
   const {nodes,links}=layout();
-  const cw=canvas.clientWidth/2, ch=canvas.clientHeight/2;
-  let h=`<g transform="translate(${cw},${ch}) scale(${view.k}) translate(${view.x},${view.y})">`;
+  const dim=size();
+  const cw=dim.w/2, ch=dim.h/2;
+  let out=`<g transform="translate(${cw},${ch}) scale(${view.k}) translate(${view.x},${view.y})">`;
   for(const l of links){
-    h+=`<path d="M ${l.x1} ${l.y1} Q ${(l.x1+l.x2)/2} ${(l.y1+l.y2)/2-14}, ${l.x2} ${l.y2}" fill="none" stroke="${l.color}" stroke-width="${l.w}" opacity=".45"/>`;
+    out+=`<path d="M ${l.x1} ${l.y1} Q ${(l.x1+l.x2)/2} ${(l.y1+l.y2)/2-14}, ${l.x2} ${l.y2}" fill="none" stroke="${l.color}" stroke-width="${l.w}" opacity=".45"/>`;
   }
   // 中心
   const lines=data.title.split("\n");
-  h+=`<g><circle r="64" fill="#2B2A26"/><circle r="64" fill="none" stroke="#C2502F" stroke-width="2" stroke-dasharray="3 5"/>`;
-  h+=`<text text-anchor="middle" fill="#F2EFE8" style="font-family:'Shippori Mincho',serif;font-weight:700;font-size:14px">`;
-  lines.forEach((ln,i)=>{ h+=`<tspan x="0" dy="${i===0?-(lines.length-1)*0.55+"em":"1.25em"}">${esc(ln)}</tspan>`; });
-  h+=`</text></g>`;
+  out+=`<g><circle r="64" fill="#2B2A26"/><circle r="64" fill="none" stroke="#C2502F" stroke-width="2" stroke-dasharray="3 5"/>`;
+  out+=`<text text-anchor="middle" fill="#F2EFE8" style="font-family:'Shippori Mincho',serif;font-weight:700;font-size:14px">`;
+  lines.forEach((ln,i)=>{ out+=`<tspan x="0" dy="${i===0?-(lines.length-1)*0.55+"em":"1.25em"}">${esc(ln)}</tspan>`; });
+  out+=`</text></g>`;
   for(const nd of nodes){
     const pal=PALETTE[nd.theme.color];
     const isSel=sel&&sel.id===nd.id;
     if(nd.kind==="theme"){
-      h+=`<g transform="translate(${nd.x},${nd.y})">
+      out+=`<g transform="translate(${nd.x},${nd.y})">
         <foreignObject x="-78" y="-28" width="156" height="56" style="overflow:visible">
           <div xmlns="http://www.w3.org/1999/xhtml" class="node-theme ${isSel?"selring":""}" data-kind="theme" data-id="${nd.id}" style="background:${pal.c}">${esc(nd.theme.name)}</div>
         </foreignObject></g>`;
     }else{
       const st=STATUSES.find(s=>s.id===nd.idea.status)||STATUSES[0];
-      h+=`<g transform="translate(${nd.x},${nd.y})">
+      out+=`<g transform="translate(${nd.x},${nd.y})">
         <foreignObject x="-92" y="-44" width="184" height="96" style="overflow:visible">
           <div xmlns="http://www.w3.org/1999/xhtml" class="node-idea ${isSel?"selring":""}" data-kind="idea" data-id="${nd.id}" style="border-left:5px solid ${pal.c}">
             <div class="meta"><span class="dot" style="background:${st.c}"></span><span>${esc(st.label)}${nd.idea.place?" ・ "+esc(nd.idea.place):""}</span></div>
@@ -300,8 +337,8 @@ function renderMap(){
         </foreignObject></g>`;
     }
   }
-  h+=`</g>`;
-  world.innerHTML=h;
+  out+=`</g>`;
+  world.innerHTML=out;
 }
 
 /* ノードタップ（パンと区別するため移動量を見る） */
@@ -355,8 +392,9 @@ canvas.addEventListener("wheel",e=>{
 },{passive:true});
 document.getElementById("zIn").onclick=()=>{view.k=Math.min(1.6,view.k*1.18);renderMap();};
 document.getElementById("zOut").onclick=()=>{view.k=Math.max(0.35,view.k*0.85);renderMap();};
-document.getElementById("zFit").onclick=()=>{view={x:0,y:0,k:0.78};renderMap();};
-window.addEventListener("resize",()=>{ if(mode==="map") renderMap(); });
+document.getElementById("zFit").onclick=()=>{fitView();};
+window.addEventListener("resize",()=>{ if(mode==="map") fitView(); });
+window.addEventListener("orientationchange",()=>{ setTimeout(()=>{ if(mode==="map") fitView(); },200); });
 
 /* ============ リスト描画 ============ */
 const listEl=document.getElementById("list");
@@ -594,7 +632,7 @@ function setMode(m){
   document.getElementById("zoomCtl").style.display = m==="map" ? "" : "none";
   document.getElementById("addThemeBar").style.display = m==="map" ? "" : "none";
   listEl.style.display = m==="list" ? "" : "none";
-  renderAll();
+  if(m==="map") fitView(); else renderAll();
 }
 btnMap.onclick=()=>setMode("map");
 btnList.onclick=()=>setMode("list");
@@ -604,7 +642,11 @@ function renderAll(includeSheet=true){
   if(mode==="map") renderMap(); else renderList();
   if(includeSheet && sel) renderSheet();
 }
-renderAll();
+/* 初期表示：サイズが確定してから全体表示にする（webview対策で複数回） */
+if(mode==="map") fitView(); else renderAll();
+requestAnimationFrame(()=>{ if(mode==="map") fitView(); });
+window.addEventListener("load",()=>{ if(mode==="map") fitView(); });
+setTimeout(()=>{ if(mode==="map") fitView(); },300);
 
 /* ============ Service Worker（オフライン対応） ============ */
 if("serviceWorker" in navigator){
