@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ネタ帳 — 地質図で歩く 西湘・箱根</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ネタ帳">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#2B2A26">
+<style>
+  :root{
+    --bg:#F2EFE8; --paper:#FDFCF9; --ink:#2B2A26; --line:#D8D3C6; --sub:#8A8475; --mid:#73776B;
+    --volcanic:#C2502F; --sulfur:#C99231; --stone:#73776B; --sea:#3E6E8E; --moss:#5C7A4A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; overscroll-behavior:none;}
+  body{
+    background:var(--bg); color:var(--ink); overflow:hidden;
+    font-family:'Zen Kaku Gothic New','Hiragino Kaku Gothic ProN',sans-serif;
+    -webkit-user-select:none; user-select:none;
+    padding-top:env(safe-area-inset-top);
+  }
+  button{font-family:inherit; cursor:pointer;}
+  input,textarea{
+    font-family:inherit; font-size:16px; color:var(--ink);
+    width:100%; padding:10px 11px; border-radius:9px;
+    border:1.5px solid var(--line); background:#fff; outline:none;
+    -webkit-user-select:text; user-select:text;
+  }
+  .serif{font-family:'Shippori Mincho','Hiragino Mincho ProN',serif;}
+
+  /* ヘッダー */
+  #hdr{position:fixed; top:env(safe-area-inset-top); left:0; right:0; z-index:10;
+    padding:10px 12px; display:flex; align-items:center; gap:8px; pointer-events:none;}
+  #hdr .card{pointer-events:auto; background:rgba(242,239,232,.93); border:1px solid var(--line);
+    border-radius:10px; padding:7px 12px;}
+  #hdr h1{margin:0; font-size:14px; font-weight:700; line-height:1.2;}
+  #hdr .st{font-size:10.5px; color:var(--sub); margin-top:1px;}
+  .pillbtn{pointer-events:auto; background:rgba(253,252,249,.95); border:1px solid var(--line);
+    border-radius:10px; padding:9px 13px; font-size:13px; font-weight:700; color:var(--ink);
+    box-shadow:0 1px 4px rgba(43,42,38,.12);}
+  #modeWrap{pointer-events:auto; display:flex; border-radius:10px; overflow:hidden;
+    border:1px solid var(--line); box-shadow:0 1px 4px rgba(43,42,38,.12);}
+  #modeWrap button{border:none; padding:9px 12px; font-size:13px; font-weight:700;
+    background:rgba(253,252,249,.95); color:var(--mid);}
+  #modeWrap button.on{background:var(--ink); color:var(--bg);}
+
+  /* マップ */
+  #canvas{position:fixed; inset:0; touch-action:none;}
+  .node-theme{background:#999; color:#fff; border-radius:999px; padding:10px 16px;
+    text-align:center; font-weight:700; font-size:14px; line-height:1.25;
+    box-shadow:0 2px 6px rgba(43,42,38,.18);}
+  .node-idea{background:var(--paper); border:1.5px solid var(--line); border-radius:10px;
+    padding:8px 10px; font-size:12.5px; line-height:1.35; box-shadow:0 1px 4px rgba(43,42,38,.12);}
+  .node-idea .meta{display:flex; align-items:center; gap:6px; margin-bottom:3px;
+    font-size:10.5px; color:var(--sub);}
+  .dot{width:8px; height:8px; border-radius:99px; flex-shrink:0;}
+  .node-idea .t{font-weight:700;}
+  .selring{box-shadow:0 0 0 3px var(--ink) !important;}
+
+  /* ズームコントロール */
+  #zoomCtl{position:fixed; right:12px; bottom:calc(96px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:8px; z-index:10;}
+  #zoomCtl button{width:42px; height:42px; border-radius:99px; border:1px solid var(--line);
+    background:rgba(253,252,249,.95); font-size:18px; font-weight:700; color:var(--ink);
+    box-shadow:0 1px 4px rgba(43,42,38,.12);}
+  #zoomCtl button.small{font-size:11px;}
+
+  /* 下部ボタン */
+  #addThemeBar{position:fixed; left:0; right:0; bottom:0; z-index:10;
+    padding:0 14px calc(14px + env(safe-area-inset-bottom));}
+  #addThemeBar button{width:100%; padding:13px; border-radius:12px; border:none;
+    background:var(--ink); color:var(--bg); font-weight:700; font-size:14px;}
+
+  /* リスト */
+  #list{position:fixed; left:0; right:0; bottom:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    top:calc(58px + env(safe-area-inset-top));
+    padding:10px 14px calc(150px + env(safe-area-inset-bottom)); background:var(--bg); z-index:5;}
+  .lt-head{display:inline-flex; align-items:center; gap:8px; border:none; color:#fff;
+    border-radius:999px; padding:8px 15px; font-weight:700; font-size:14px; margin-bottom:8px;}
+  .lt-head .n{font-weight:400; font-size:12px; opacity:.85;}
+  .lt-idea{display:block; width:100%; text-align:left; background:var(--paper);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:6px; color:var(--ink);}
+  .lt-idea .meta{display:flex; align-items:center; gap:6px; margin-bottom:2px; font-size:11px; color:var(--sub);}
+  .lt-idea .t{font-weight:700; font-size:14px; line-height:1.35;}
+  .lt-idea .chain{font-size:12px; color:var(--sub); margin-top:3px;}
+  .quickadd{display:flex; gap:6px; margin-top:2px;}
+  .quickadd button{border:none; border-radius:9px; color:#fff; font-weight:700; font-size:14px;
+    padding:0 16px; flex-shrink:0;}
+  .lt-addtheme{width:100%; padding:13px; border-radius:12px; border:1.5px dashed #A39B87;
+    background:transparent; color:var(--mid); font-weight:700; font-size:14px; margin-top:6px;}
+
+  /* シート */
+  #sheet{position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--paper);
+    border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+    padding:10px 16px calc(16px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 24px rgba(43,42,38,.14); max-height:60vh; overflow-y:auto;
+    -webkit-overflow-scrolling:touch; transition:bottom .15s ease; display:none;}
+  #sheet.open{display:block;}
+  .grab{display:flex; justify-content:center; margin-bottom:6px;}
+  .grab button{border:none; background:transparent; padding:4px;}
+  .grab div{width:40px; height:4px; border-radius:99px; background:var(--line);}
+  .sheet-top{display:flex; gap:8px; align-items:center; margin-bottom:10px;}
+  .eyebrow{font-size:11px; color:var(--sub); letter-spacing:.08em;}
+  .danger{border:1px solid var(--volcanic); background:transparent; color:var(--volcanic);
+    border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700;}
+  .field{margin-bottom:10px;}
+  .field .lbl{font-size:11px; color:var(--sub); letter-spacing:.08em; margin-bottom:5px;}
+  .statusrow{display:flex; gap:6px;}
+  .statusrow button{flex:1; padding:10px 0; border-radius:8px; font-size:12px; font-weight:700;
+    border:1.5px solid var(--line); background:transparent; color:var(--mid);}
+  .colorrow{display:flex; gap:8px;}
+  .colorrow button{width:32px; height:32px; border-radius:99px; border:none;}
+  .bigadd{width:100%; margin-top:6px; padding:12px; border-radius:10px; border:none;
+    color:#fff; font-weight:700; font-size:14px;}
+  .closebtn{width:100%; margin-top:12px; padding:11px; border-radius:10px;
+    border:1px solid var(--line); background:transparent; color:var(--mid); font-weight:700; font-size:13px;}
+
+  /* モーダル */
+  #modal{position:fixed; inset:0; background:rgba(43,42,38,.45); z-index:30;
+    display:none; align-items:center; justify-content:center; padding:16px;}
+  #modal.open{display:flex;}
+  #modal .box{background:var(--paper); border-radius:14px; padding:16px; width:100%;
+    max-width:520px; max-height:80vh; display:flex; flex-direction:column; gap:10px; overflow-y:auto;}
+  #modal h2{margin:0; font-size:15px; font-weight:700;}
+  #modal .hint{font-size:12px; color:var(--sub);}
+  #modal textarea{min-height:160px; font-family:ui-monospace,monospace; resize:none;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div class="card">
+    <h1 class="serif">ネタ帳 — 西湘・箱根</h1>
+    <div class="st" id="saveState">本体に自動保存</div>
+  </div>
+  <div style="flex:1"></div>
+  <div id="modeWrap">
+    <button id="btnMap" class="on">マップ</button>
+    <button id="btnList">リスト</button>
+  </div>
+  <button class="pillbtn" id="btnExport">書き出す</button>
+</div>
+
+<svg id="canvas">
+  <defs>
+    <pattern id="contour" width="260" height="260" patternUnits="userSpaceOnUse">
+      <path d="M -20 30 Q 65 4, 130 30 T 290 30" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".18"/>
+      <path d="M -20 70 Q 65 44, 130 70 T 290 70" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".32"/>
+      <path d="M -20 110 Q 65 84, 130 110 T 290 110" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".18"/>
+      <path d="M -20 150 Q 65 124, 130 150 T 290 150" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".32"/>
+      <path d="M -20 190 Q 65 164, 130 190 T 290 190" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".18"/>
+      <path d="M -20 230 Q 65 204, 130 230 T 290 230" fill="none" stroke="#A39B87" stroke-width=".7" opacity=".32"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#contour)"/>
+  <g id="world"></g>
+</svg>
+
+<div id="zoomCtl">
+  <button id="zIn">＋</button>
+  <button id="zOut">－</button>
+  <button id="zFit" class="small">全体</button>
+</div>
+
+<div id="addThemeBar"><button id="btnAddTheme">＋ 軸を追加（例: 海 × 食、地形 × 街道）</button></div>
+
+<div id="list" style="display:none"></div>
+
+<div id="sheet"></div>
+
+<div id="modal">
+  <div class="box" id="modalBox"></div>
+</div>
+
+<script>
+/* ============ 定数 ============ */
+const PALETTE=[
+  {key:"volcanic",c:"#C2502F",ink:"#5A2313"},
+  {key:"sulfur",  c:"#C99231",ink:"#5C430F"},
+  {key:"stone",   c:"#73776B",ink:"#33352F"},
+  {key:"sea",     c:"#3E6E8E",ink:"#1C3A4E"},
+  {key:"moss",    c:"#5C7A4A",ink:"#2A3B20"},
+];
+const STATUSES=[
+  {id:"seed", label:"たね",  c:"#9A9588"},
+  {id:"dig",  label:"調査中",c:"#C99231"},
+  {id:"write",label:"執筆中",c:"#C2502F"},
+  {id:"pub",  label:"公開",  c:"#3E6E8E"},
+];
+const KEY="hakone-geoguide-ideamap-v1";
+const SEED={
+  title:"地質図で歩く\n西湘・箱根",
+  themes:[
+    {id:"t1",name:"火山 × 食",color:0,ideas:[
+      {id:"i1",title:"なぜ箱根といえば黒たまごなのか",place:"大涌谷",
+       geo:"神山の水蒸気爆発（約3000年前）",via:"硫気と鉄の温泉池",food:"黒たまご",
+       memo:"黒色物質の正体は研究が継続中（分析化学72巻, 2023）",status:"write"}]},
+    {id:"t2",name:"溶岩 × 石",color:2,ideas:[
+      {id:"i2",title:"江戸城は箱根火山でできている",place:"真鶴",
+       geo:"箱根火山の溶岩流",via:"本小松石の採石",food:"石の町・海の幸",memo:"",status:"seed"}]},
+    {id:"t3",name:"地質 × 湯",color:3,ideas:[
+      {id:"i3",title:"一つの山に、なぜ何種類もの湯が湧くのか",place:"箱根十七湯",
+       geo:"重なり合う火山構造",via:"通る地層で変わる泉質",food:"湯めぐり文化",memo:"",status:"seed"}]},
+  ],
+};
+let _u=0;
+const uid=()=>"n"+Date.now().toString(36)+(_u++).toString(36);
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+
+/* ============ 状態 ============ */
+let data;
+try{ data=JSON.parse(localStorage.getItem(KEY)) || null; }catch(e){ data=null; }
+if(!data || !Array.isArray(data.themes)) data=structuredClone(SEED);
+
+let view={x:0,y:0,k:0.78};
+let sel=null;          // {kind:"theme"|"idea", id}
+let mode="map";
+let freshId=null;
+
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify(data));
+    setStatus("保存しました");
+  }catch(e){ setStatus("保存に失敗（容量超過の可能性）"); }
+}
+let stTimer;
+function setStatus(t){
+  const el=document.getElementById("saveState");
+  el.textContent=t;
+  clearTimeout(stTimer);
+  stTimer=setTimeout(()=>{ el.textContent="本体に自動保存"; },1600);
+}
+function findIdea(id){
+  for(const t of data.themes){
+    const i=t.ideas.find(x=>x.id===id);
+    if(i) return {idea:i,theme:t};
+  }
+  return null;
+}
+
+/* ============ レイアウト ============ */
+function layout(){
+  const nodes=[],links=[];
+  const n=data.themes.length||1, R1=190;
+  data.themes.forEach((t,i)=>{
+    const ang=(i/n)*Math.PI*2-Math.PI/2;
+    const tx=Math.cos(ang)*R1, ty=Math.sin(ang)*R1;
+    nodes.push({kind:"theme",id:t.id,x:tx,y:ty,theme:t});
+    links.push({x1:0,y1:0,x2:tx,y2:ty,color:PALETTE[t.color].c,w:2.5});
+    const m=t.ideas.length, spread=Math.min(0.62,1.9/Math.max(m,1));
+    t.ideas.forEach((idea,k)=>{
+      const a2=ang+(k-(m-1)/2)*spread;
+      const R2=R1+185+(k%2)*26;
+      const ix=Math.cos(a2)*R2, iy=Math.sin(a2)*R2;
+      nodes.push({kind:"idea",id:idea.id,x:ix,y:iy,idea,theme:t});
+      links.push({x1:tx,y1:ty,x2:ix,y2:iy,color:PALETTE[t.color].c,w:1.4});
+    });
+  });
+  return {nodes,links};
+}
+
+/* ============ マップ描画 ============ */
+const world=document.getElementById("world");
+const canvas=document.getElementById("canvas");
+function renderMap(){
+  const {nodes,links}=layout();
+  const cw=canvas.clientWidth/2, ch=canvas.clientHeight/2;
+  let h=`<g transform="translate(${cw},${ch}) scale(${view.k}) translate(${view.x},${view.y})">`;
+  for(const l of links){
+    h+=`<path d="M ${l.x1} ${l.y1} Q ${(l.x1+l.x2)/2} ${(l.y1+l.y2)/2-14}, ${l.x2} ${l.y2}" fill="none" stroke="${l.color}" stroke-width="${l.w}" opacity=".45"/>`;
+  }
+  // 中心
+  const lines=data.title.split("\n");
+  h+=`<g><circle r="64" fill="#2B2A26"/><circle r="64" fill="none" stroke="#C2502F" stroke-width="2" stroke-dasharray="3 5"/>`;
+  h+=`<text text-anchor="middle" fill="#F2EFE8" style="font-family:'Shippori Mincho',serif;font-weight:700;font-size:14px">`;
+  lines.forEach((ln,i)=>{ h+=`<tspan x="0" dy="${i===0?-(lines.length-1)*0.55+"em":"1.25em"}">${esc(ln)}</tspan>`; });
+  h+=`</text></g>`;
+  for(const nd of nodes){
+    const pal=PALETTE[nd.theme.color];
+    const isSel=sel&&sel.id===nd.id;
+    if(nd.kind==="theme"){
+      h+=`<g transform="translate(${nd.x},${nd.y})">
+        <foreignObject x="-78" y="-28" width="156" height="56" style="overflow:visible">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="node-theme ${isSel?"selring":""}" data-kind="theme" data-id="${nd.id}" style="background:${pal.c}">${esc(nd.theme.name)}</div>
+        </foreignObject></g>`;
+    }else{
+      const st=STATUSES.find(s=>s.id===nd.idea.status)||STATUSES[0];
+      h+=`<g transform="translate(${nd.x},${nd.y})">
+        <foreignObject x="-92" y="-44" width="184" height="96" style="overflow:visible">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="node-idea ${isSel?"selring":""}" data-kind="idea" data-id="${nd.id}" style="border-left:5px solid ${pal.c}">
+            <div class="meta"><span class="dot" style="background:${st.c}"></span><span>${esc(st.label)}${nd.idea.place?" ・ "+esc(nd.idea.place):""}</span></div>
+            <div class="t">${esc(nd.idea.title)}</div>
+          </div>
+        </foreignObject></g>`;
+    }
+  }
+  h+=`</g>`;
+  world.innerHTML=h;
+}
+
+/* ノードタップ（パンと区別するため移動量を見る） */
+let tapStart=null;
+canvas.addEventListener("pointerdown",e=>{ tapStart={x:e.clientX,y:e.clientY}; });
+canvas.addEventListener("pointerup",e=>{
+  if(!tapStart) return;
+  const moved=Math.hypot(e.clientX-tapStart.x,e.clientY-tapStart.y);
+  tapStart=null;
+  if(moved>8) return;
+  const el=e.target.closest("[data-id]");
+  if(el){ openSheet(el.dataset.kind,el.dataset.id); }
+});
+
+/* ============ パン・ズーム ============ */
+let drag=null,pinch=null;
+canvas.addEventListener("touchstart",e=>{
+  if(e.touches.length===2){
+    const[a,b]=e.touches;
+    pinch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),k:view.k};
+    drag=null; return;
+  }
+  const p=e.touches[0];
+  drag={sx:p.clientX,sy:p.clientY,vx:view.x,vy:view.y};
+},{passive:true});
+canvas.addEventListener("touchmove",e=>{
+  if(e.touches.length===2&&pinch){
+    const[a,b]=e.touches;
+    const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+    view.k=Math.min(1.6,Math.max(0.35,pinch.k*(d/pinch.d)));
+    renderMap(); return;
+  }
+  if(!drag) return;
+  const p=e.touches[0];
+  view.x=drag.vx+(p.clientX-drag.sx)/view.k;
+  view.y=drag.vy+(p.clientY-drag.sy)/view.k;
+  renderMap();
+},{passive:true});
+canvas.addEventListener("touchend",()=>{drag=null;pinch=null;});
+canvas.addEventListener("mousedown",e=>{drag={sx:e.clientX,sy:e.clientY,vx:view.x,vy:view.y};});
+window.addEventListener("mousemove",e=>{
+  if(!drag) return;
+  view.x=drag.vx+(e.clientX-drag.sx)/view.k;
+  view.y=drag.vy+(e.clientY-drag.sy)/view.k;
+  renderMap();
+});
+window.addEventListener("mouseup",()=>{drag=null;});
+canvas.addEventListener("wheel",e=>{
+  view.k=Math.min(1.6,Math.max(0.35,view.k*(e.deltaY<0?1.08:0.92)));
+  renderMap();
+},{passive:true});
+document.getElementById("zIn").onclick=()=>{view.k=Math.min(1.6,view.k*1.18);renderMap();};
+document.getElementById("zOut").onclick=()=>{view.k=Math.max(0.35,view.k*0.85);renderMap();};
+document.getElementById("zFit").onclick=()=>{view={x:0,y:0,k:0.78};renderMap();};
+window.addEventListener("resize",()=>{ if(mode==="map") renderMap(); });
+
+/* ============ リスト描画 ============ */
+const listEl=document.getElementById("list");
+function renderList(){
+  let h="";
+  for(const t of data.themes){
+    const pal=PALETTE[t.color];
+    h+=`<div style="margin-bottom:18px">
+      <button class="lt-head" data-kind="theme" data-id="${t.id}" style="background:${pal.c}">
+        ${esc(t.name)}<span class="n">${t.ideas.length}本</span></button>`;
+    for(const i of t.ideas){
+      const st=STATUSES.find(s=>s.id===i.status)||STATUSES[0];
+      h+=`<button class="lt-idea" data-kind="idea" data-id="${i.id}" style="border-left:5px solid ${pal.c}">
+        <div class="meta"><span class="dot" style="background:${st.c}"></span><span>${esc(st.label)}${i.place?" ・ "+esc(i.place):""}</span></div>
+        <div class="t">${esc(i.title)}</div>
+        ${(i.geo||i.via||i.food)?`<div class="chain">${esc(i.geo||"？")} → ${esc(i.via||"？")} → ${esc(i.food||"？")}</div>`:""}
+      </button>`;
+    }
+    h+=`<div class="quickadd">
+      <input id="qa-${t.id}" placeholder="ネタを入力して追加…" enterkeyhint="next">
+      <button data-qa="${t.id}" style="background:${pal.c}">追加</button>
+    </div></div>`;
+  }
+  h+=`<button class="lt-addtheme" id="listAddTheme">＋ 軸を追加</button>`;
+  listEl.innerHTML=h;
+
+  listEl.querySelectorAll(".lt-idea,.lt-head").forEach(el=>{
+    el.onclick=()=>openSheet(el.dataset.kind,el.dataset.id);
+  });
+  listEl.querySelectorAll("[data-qa]").forEach(btn=>{
+    btn.onclick=()=>quickAdd(btn.dataset.qa);
+  });
+  listEl.querySelectorAll("input[id^='qa-']").forEach(inp=>{
+    inp.addEventListener("keydown",e=>{
+      if(e.key==="Enter") quickAdd(inp.id.slice(3));
+    });
+  });
+  document.getElementById("listAddTheme").onclick=addTheme;
+}
+function quickAdd(themeId){
+  const inp=document.getElementById("qa-"+themeId);
+  const v=inp.value.trim();
+  if(!v) return;
+  const t=data.themes.find(x=>x.id===themeId);
+  t.ideas.push({id:uid(),title:v,place:"",geo:"",via:"",food:"",memo:"",status:"seed"});
+  save(); renderList();
+  const again=document.getElementById("qa-"+themeId);
+  if(again) again.focus();
+}
+
+/* ============ 編集操作 ============ */
+function addTheme(){
+  const t={id:uid(),name:"新しい軸",color:data.themes.length%PALETTE.length,ideas:[]};
+  data.themes.push(t);
+  save(); renderAll();
+  openSheet("theme",t.id);
+}
+function addIdea(themeId){
+  const t=data.themes.find(x=>x.id===themeId);
+  const idea={id:uid(),title:"新しいネタ",place:"",geo:"",via:"",food:"",memo:"",status:"seed"};
+  t.ideas.push(idea);
+  freshId=idea.id;
+  save(); renderAll();
+  openSheet("idea",idea.id);
+}
+function removeSel(){
+  if(!sel) return;
+  if(sel.kind==="theme") data.themes=data.themes.filter(t=>t.id!==sel.id);
+  else for(const t of data.themes) t.ideas=t.ideas.filter(i=>i.id!==sel.id);
+  save(); closeSheet(); renderAll();
+}
+
+/* ============ シート ============ */
+const sheet=document.getElementById("sheet");
+function openSheet(kind,id){
+  sel={kind,id};
+  renderSheet();
+  sheet.classList.add("open");
+  document.getElementById("addThemeBar").style.display="none";
+  renderAll(false);
+  if(freshId===id){
+    const ti=document.getElementById("f-title");
+    if(ti){ ti.focus(); ti.select(); }
+    freshId=null;
+  }
+}
+function closeSheet(){
+  sel=null;
+  sheet.classList.remove("open");
+  document.getElementById("addThemeBar").style.display = mode==="map" ? "" : "none";
+  renderAll(false);
+}
+function renderSheet(){
+  if(!sel){ sheet.innerHTML=""; return; }
+  if(sel.kind==="theme"){
+    const t=data.themes.find(x=>x.id===sel.id);
+    if(!t){ closeSheet(); return; }
+    sheet.innerHTML=`
+      <div class="grab"><button id="shClose1" aria-label="閉じる"><div></div></button></div>
+      <div class="sheet-top"><span class="eyebrow">軸（テーマ）</span><div style="flex:1"></div>
+        <button class="danger" id="shDel">削除</button></div>
+      <div class="field"><div class="lbl">軸の名前</div><input id="f-tname" value="${esc(t.name)}" enterkeyhint="done"></div>
+      <div class="field"><div class="lbl">色</div><div class="colorrow" id="f-colors">
+        ${PALETTE.map((p,i)=>`<button data-c="${i}" style="background:${p.c};outline:${t.color===i?`3px solid ${p.ink}`:"none"};outline-offset:2px"></button>`).join("")}
+      </div></div>
+      <button class="bigadd" id="shAddIdea" style="background:${PALETTE[t.color].c}">＋ この軸にネタを生やす</button>
+      <button class="closebtn" id="shClose2">閉じて戻る</button>`;
+    document.getElementById("f-tname").addEventListener("input",e=>{ t.name=e.target.value; save(); renderAll(false); });
+    document.getElementById("f-tname").addEventListener("keydown",e=>{ if(e.key==="Enter") e.target.blur(); });
+    document.getElementById("f-colors").querySelectorAll("button").forEach(b=>{
+      b.onclick=()=>{ t.color=+b.dataset.c; save(); renderSheet(); renderAll(false); };
+    });
+    document.getElementById("shAddIdea").onclick=()=>addIdea(t.id);
+    document.getElementById("shDel").onclick=()=>{ if(confirm("この軸と中のネタを削除しますか？")) removeSel(); };
+    document.getElementById("shClose1").onclick=closeSheet;
+    document.getElementById("shClose2").onclick=closeSheet;
+  }else{
+    const f=findIdea(sel.id);
+    if(!f){ closeSheet(); return; }
+    const {idea,theme}=f;
+    sheet.innerHTML=`
+      <div class="grab"><button id="shClose1" aria-label="閉じる"><div></div></button></div>
+      <div class="sheet-top"><span class="eyebrow">${esc(theme.name)} のネタ</span><div style="flex:1"></div>
+        <button class="danger" id="shDel">削除</button></div>
+      <div class="field"><div class="lbl">タイトル（問いの形が強い）</div>
+        <input id="f-title" value="${esc(idea.title)}" enterkeyhint="done"></div>
+      <div class="field"><div class="lbl">場所・ジオサイト</div>
+        <input id="f-place" value="${esc(idea.place)}" placeholder="例: 仙石原" enterkeyhint="done"></div>
+      <div class="field"><div class="lbl">状態</div><div class="statusrow" id="f-status">
+        ${STATUSES.map(s=>`<button data-s="${s.id}" style="${idea.status===s.id?`border-color:${s.c};background:${s.c};color:#fff`:""}">${s.label}</button>`).join("")}
+      </div></div>
+      <div class="eyebrow" style="margin:4px 0 6px">連鎖（この土地だから、これがある）</div>
+      <div style="display:grid;gap:6px;margin-bottom:10px">
+        <input id="f-geo" value="${esc(idea.geo)}" placeholder="地質・地形（例: 神山の崩壊）" style="border-left:4px solid #C2502F" enterkeyhint="next">
+        <input id="f-via" value="${esc(idea.via)}" placeholder="媒介（例: 硫気と鉄の池）" style="border-left:4px solid #C99231" enterkeyhint="next">
+        <input id="f-food" value="${esc(idea.food)}" placeholder="食・文化（例: 黒たまご）" style="border-left:4px solid #3E6E8E" enterkeyhint="done">
+      </div>
+      <div class="field"><div class="lbl">メモ（出典・裏取りもここに）</div>
+        <textarea id="f-memo" rows="2">${esc(idea.memo)}</textarea></div>
+      <button class="closebtn" id="shClose2">閉じて戻る</button>`;
+    const bind=(fid,key,blurOnEnter)=>{
+      const el=document.getElementById(fid);
+      el.addEventListener("input",e=>{ idea[key]=e.target.value; save(); renderAll(false); });
+      if(blurOnEnter) el.addEventListener("keydown",e=>{ if(e.key==="Enter") e.target.blur(); });
+    };
+    bind("f-title","title",true);
+    bind("f-place","place",true);
+    bind("f-geo","geo");
+    bind("f-via","via");
+    bind("f-food","food",true);
+    bind("f-memo","memo");
+    document.getElementById("f-status").querySelectorAll("button").forEach(b=>{
+      b.onclick=()=>{ idea.status=b.dataset.s; save(); renderSheet(); renderAll(false); };
+    });
+    document.getElementById("shDel").onclick=()=>{ if(confirm("このネタを削除しますか？")) removeSel(); };
+    document.getElementById("shClose1").onclick=closeSheet;
+    document.getElementById("shClose2").onclick=closeSheet;
+  }
+}
+
+/* キーボードが出たらシートを持ち上げる */
+if(window.visualViewport){
+  const vv=window.visualViewport;
+  const adj=()=>{
+    const off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+    sheet.style.bottom=off+"px";
+    sheet.style.maxHeight=off?`calc(100vh - ${off}px - 70px)`:"60vh";
+  };
+  vv.addEventListener("resize",adj);
+  vv.addEventListener("scroll",adj);
+}
+
+/* ============ 書き出し・バックアップ ============ */
+function toMarkdown(){
+  let md=`# ${data.title.replace(/\n/g," ")} — ネタ帳\n`;
+  for(const t of data.themes){
+    md+=`\n## ${t.name}\n`;
+    for(const i of t.ideas){
+      const st=STATUSES.find(s=>s.id===i.status)?.label||"";
+      md+=`- 【${st}】${i.title}${i.place?`（${i.place}）`:""}\n`;
+      if(i.geo||i.via||i.food) md+=`  - 連鎖: ${i.geo||"？"} → ${i.via||"？"} → ${i.food||"？"}\n`;
+      if(i.memo) md+=`  - メモ: ${i.memo}\n`;
+    }
+  }
+  return md;
+}
+const modal=document.getElementById("modal");
+const modalBox=document.getElementById("modalBox");
+document.getElementById("btnExport").onclick=()=>{
+  modalBox.innerHTML=`
+    <h2 class="serif">書き出し・バックアップ</h2>
+    <div class="hint">ネタ一覧（Markdown）。タップで全選択されます。</div>
+    <textarea id="mdOut" readonly>${esc(toMarkdown())}</textarea>
+    <div class="modal-actions">
+      <button class="pillbtn" id="copyMd">Markdownをコピー</button>
+      <button class="pillbtn" id="copyJson">バックアップ(JSON)をコピー</button>
+      <button class="pillbtn" id="importJson">バックアップを読み込む</button>
+      <button class="pillbtn" id="closeModal">閉じる</button>
+    </div>`;
+  modal.classList.add("open");
+  document.getElementById("mdOut").onfocus=e=>e.target.select();
+  document.getElementById("closeModal").onclick=()=>modal.classList.remove("open");
+  document.getElementById("copyMd").onclick=async()=>{
+    try{ await navigator.clipboard.writeText(toMarkdown()); setStatus("コピーしました"); }
+    catch(e){ document.getElementById("mdOut").select(); }
+  };
+  document.getElementById("copyJson").onclick=async()=>{
+    try{ await navigator.clipboard.writeText(JSON.stringify(data)); setStatus("コピーしました"); }
+    catch(e){
+      const ta=document.getElementById("mdOut");
+      ta.value=JSON.stringify(data); ta.select();
+    }
+  };
+  document.getElementById("importJson").onclick=()=>{
+    const txt=prompt("バックアップ(JSON)を貼り付けてください。現在のデータは上書きされます。");
+    if(!txt) return;
+    try{
+      const d=JSON.parse(txt);
+      if(!Array.isArray(d.themes)) throw 0;
+      data=d; save(); renderAll();
+      modal.classList.remove("open");
+      setStatus("読み込みました");
+    }catch(e){ alert("読み込めませんでした。JSONの形式を確認してください。"); }
+  };
+};
+modal.addEventListener("click",e=>{ if(e.target===modal) modal.classList.remove("open"); });
+
+/* ============ モード切替・初期化 ============ */
+const btnMap=document.getElementById("btnMap"), btnList=document.getElementById("btnList");
+function setMode(m){
+  mode=m; closeSheet();
+  btnMap.classList.toggle("on",m==="map");
+  btnList.classList.toggle("on",m==="list");
+  canvas.style.display = m==="map" ? "" : "none";
+  document.getElementById("zoomCtl").style.display = m==="map" ? "" : "none";
+  document.getElementById("addThemeBar").style.display = m==="map" ? "" : "none";
+  listEl.style.display = m==="list" ? "" : "none";
+  renderAll();
+}
+btnMap.onclick=()=>setMode("map");
+btnList.onclick=()=>setMode("list");
+document.getElementById("btnAddTheme").onclick=addTheme;
+
+function renderAll(includeSheet=true){
+  if(mode==="map") renderMap(); else renderList();
+  if(includeSheet && sel) renderSheet();
+}
+renderAll();
+
+/* ============ Service Worker（オフライン対応） ============ */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+</script>
+</body>
+</html>
