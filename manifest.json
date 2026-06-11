@@ -1,0 +1,13 @@
+{
+  "name": "ネタ帳 — 地質図で歩く 西湘・箱根",
+  "short_name": "ネタ帳",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2EFE8",
+  "theme_color": "#2B2A26",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
